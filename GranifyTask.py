@@ -56,6 +56,8 @@ ordersAlias = ordersDf.alias("order")
 sessionOrders = sessionsAlias.join(ordersAlias, ["ssid"])
 
 #Orderby and show values
-sessionOrders.groupby("startTime","siteId","gr","browser").agg(count("*").alias("sessions"), sum("transactions").alias("transactions"), sum("revenue").alias("revenue")).show()
+groupedData = sessionOrders.groupby("startTime","siteId","gr","browser").agg(count("*").alias("sessions"), sum("transactions").alias("transactions"), sum("revenue").alias("revenue"))
+groupedData.coalesce(1).write.option("sep","\t").option("header","true").csv("results/target.tsv")
+
 
 #Todo: Ensure we can get the add into these items for the groupby
