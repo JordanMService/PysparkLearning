@@ -1,8 +1,8 @@
 import datetime
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
-from pyspark.sql.functions import  split,date_format, udf
-from pyspark.sql.types import *
+from pyspark.sql.functions import  split,date_format, udf, sum, count, col
+from pyspark.sql.types import StringType
 
 
 
@@ -41,13 +41,21 @@ sessionsRdd = sc.textFile("data/sessions.gz")
 sessionsDf = sqlContext.read.json(sessionsRdd)
 #checkNullCol(sessionsDf)
  
+#Convert orders to grouped values
+ordersDf = ordersDf.groupby("ssid").agg( sum("revenue").alias("revenue"), count("*").alias("transactions"))
 
-ordersAlias = ordersDf.alias("data/order")
-featuresAlias = featuresDf.alias("feature")
-sessionsAlias = sessionsDf.alias("session")
-
-
+#Convert sessions to grouped vals
 conversionUdf = udf(convertUnixToDate,StringType())
-sessionsDf = sessionsDf.withColumn("unixTime", split(sessionsDf.ssid,":")[2])
-startTimes = sessionsDf.select("unixTime",conversionUdf("unixTime").alias("startTimes"))
-startTimes.select('startTimes').distinct().show()
+sessionsDf  = sessionsDf.withColumn("unixTime", split(sessionsDf .ssid,":")[2])
+sessionsDf  = sessionsDf.withColumn("startTime",conversionUdf("unixTime"))
+sessionsDf  = sessionsDf.withColumn("siteId", split(sessionsDf .ssid,":")[1])
+
+#Join sessions and groups
+sessionsAlias = sessionsDf.alias("session")
+ordersAlias = ordersDf.alias("order")
+sessionOrders = sessionsAlias.join(ordersAlias, ["ssid"])
+
+#Orderby and show values
+sessionOrders.groupby("startTime","siteId","gr","browser").agg(count("*").alias("sessions"), sum("transactions").alias("transactions"), sum("revenue").alias("revenue")).show()
+
+#Todo: Ensure we can get the add into these items for the groupby
