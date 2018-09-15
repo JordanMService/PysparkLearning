@@ -40,6 +40,13 @@ featuresDf = sqlContext.read.json(featuresRdd)
 sessionsRdd = sc.textFile("data/sessions.gz")
 sessionsDf = sqlContext.read.json(sessionsRdd)
 #checkNullCol(sessionsDf)
+
+#check sessions for unique ids
+# sessionsDf = sessionsDf.dropDuplicates()
+# sessionCount = sessionsDf.count()
+# uniqueSessions =  sessionsDf.select("ssid").distinct().count()
+
+#print("sessions %d : uniqueSessions %d" % (sessionCount, uniqueSessions))
  
 #Convert orders to grouped values
 ordersDf = ordersDf.groupby("ssid").agg( sum("revenue").alias("revenue"), count("*").alias("transactions"))
@@ -53,11 +60,11 @@ sessionsDf  = sessionsDf.withColumn("siteId", split(sessionsDf .ssid,":")[1])
 #Join sessions and groups
 sessionsAlias = sessionsDf.alias("session")
 ordersAlias = ordersDf.alias("order")
+featureAlias = featuresDf.select("ssid", "ad").alias("features")
 sessionOrders = sessionsAlias.join(ordersAlias, ["ssid"])
+joinedData = sessionOrders.join(featureAlias, ["ssid"])
 
 #Orderby and show values
-groupedData = sessionOrders.groupby("startTime","siteId","gr","browser").agg(count("*").alias("sessions"), sum("transactions").alias("transactions"), sum("revenue").alias("revenue"))
+groupedData = joinedData.groupby("startTime","siteId","gr","ad","browser",).agg(count("*").alias("sessions"), sum("transactions").alias("transactions"), sum("revenue").alias("revenue"))
 groupedData.coalesce(1).write.option("sep","\t").option("header","true").csv("results/target.tsv")
 
-
-#Todo: Ensure we can get the add into these items for the groupby
