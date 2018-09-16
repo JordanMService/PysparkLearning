@@ -71,7 +71,7 @@ joinedData = sessionOrders.join(featureAlias, ["ssid"])
 
 # #Orderby and show values
 groupedData = joinedData.groupby("startTime","siteId","gr","ad","browser",).agg(count("*").alias("sessions"), sum("transactions").alias("transactions"), sum("revenue").alias("revenue"))
-groupedData.coalesce(1).write.option("sep","\t").option("header","true").csv("results/target.tsv")
+#groupedData.coalesce(1).write.option("sep","\t").option("header","true").csv("results/target.tsv")
 
 # https://stackoverflow.com/questions/47995188/how-to-calculate-mean-and-standard-deviation-given-a-pyspark-dataframe
 # Get matching pairs and calculate the mean and value
@@ -80,4 +80,4 @@ stdDevExp = [stddev("feature-{0}".format(x+1)).alias("feature{0}_std".format(x+1
 siteIdUdf = udf(ssidToSiteId,StringType())
 featuresDf = featuresDf.withColumn("siteId",siteIdUdf("ssid"))
 adData = featuresDf.groupby("siteId","ad").agg(*meanFeatureExp,*stdDevExp)
-adData.show()
+adData.coalesce(1).write.option("sep","\t").option("header","true").mode("append").csv("results/output.txt")
