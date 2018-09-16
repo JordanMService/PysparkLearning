@@ -1,7 +1,7 @@
 import datetime
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
-from pyspark.sql.functions import  split,date_format, udf, sum, count, col
+from pyspark.sql.functions import  split,date_format, udf, sum, count, col, mean, stddev
 from pyspark.sql.types import StringType
 
 
@@ -21,6 +21,11 @@ def convertUnixToDate(unixStr):
 def ssidToStartTime(ssid) :
     splitArray = ssid.split(":")
     return splitArray[2]
+
+
+def ssidToSiteId(ssid) : 
+    splitArray = ssid.split(":")
+    return splitArray[1]
 
 def withStartTime(df) :
     df.withColumn("startTime",)
@@ -57,14 +62,22 @@ sessionsDf  = sessionsDf.withColumn("unixTime", split(sessionsDf .ssid,":")[2])
 sessionsDf  = sessionsDf.withColumn("startTime",conversionUdf("unixTime"))
 sessionsDf  = sessionsDf.withColumn("siteId", split(sessionsDf .ssid,":")[1])
 
-#Join sessions and groups
+# #Join sessions and groups
 sessionsAlias = sessionsDf.alias("session")
 ordersAlias = ordersDf.alias("order")
 featureAlias = featuresDf.select("ssid", "ad").alias("features")
 sessionOrders = sessionsAlias.join(ordersAlias, ["ssid"])
 joinedData = sessionOrders.join(featureAlias, ["ssid"])
 
-#Orderby and show values
+# #Orderby and show values
 groupedData = joinedData.groupby("startTime","siteId","gr","ad","browser",).agg(count("*").alias("sessions"), sum("transactions").alias("transactions"), sum("revenue").alias("revenue"))
 groupedData.coalesce(1).write.option("sep","\t").option("header","true").csv("results/target.tsv")
 
+# https://stackoverflow.com/questions/47995188/how-to-calculate-mean-and-standard-deviation-given-a-pyspark-dataframe
+# Get matching pairs and calculate the mean and value
+meanFeatureExp = [mean("feature-{0}".format(x+1)).alias("feature{0}_mean".format(x+1)) for x in range(4)]
+stdDevExp = [stddev("feature-{0}".format(x+1)).alias("feature{0}_std".format(x+1)) for x in range(4)]
+siteIdUdf = udf(ssidToSiteId,StringType())
+featuresDf = featuresDf.withColumn("siteId",siteIdUdf("ssid"))
+adData = featuresDf.groupby("siteId","ad").agg(*meanFeatureExp,*stdDevExp)
+adData.show()
